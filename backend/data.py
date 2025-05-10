@@ -1,3 +1,19 @@
+"""
+This module is responsible for preprocessing the original data and saving it into TSV files.
+Additionally, it loads the preprocessed data from the TSV files into dataframes so they can be used in the application.
+
+
+If you plan to run this module manually, to preprocess the data yourself, you need to run this script as a module.
+For example:
+```bash
+cd .. && python -m backend.data && cd backend
+```
+
+TODO: Update the original data because their outdated.
+TODO: Upload the preprocessed data to Github Releases and decompress it.
+"""
+
+import random
 import json
 import os
 
@@ -5,28 +21,97 @@ from thefuzz import fuzz
 import pandas as pd
 import numpy as np
 
+from .schemas import LocationName
 
-def preprocess_data():
-    """
-    This function preprocesses the original data and saves some new TSV files into the data directory.
-    The original data can be found in [Github Releases](https://github.com/KonstantinosPetrakis/airwave-thess/releases/tag/original-data).
-    """
 
-    # Preprocess location data and save it to a TSV file
-    location_data = json.load(open("./data/osm-boundaries.geojson", encoding="utf-8"))
+DATA_DIR = os.path.dirname(os.path.abspath(__file__)) + "/data"
+
+
+def _preprocess_location_data() -> pd.DataFrame:
+    location_data = json.load(
+        open(f"{DATA_DIR}/osm-boundaries.geojson", encoding="utf-8")
+    )
+    thermaikos_data = pd.read_csv(f"{DATA_DIR}/maps-co-thermaikos.csv")
     location_df = pd.DataFrame(
         [
             {
                 "name": feature["properties"]["name_en"],
-                "coordinates": feature["geometry"]["coordinates"],
+                "multi_polygons": (
+                    feature["geometry"]["coordinates"]
+                    if feature["geometry"]["type"] == "MultiPolygon"
+                    else [feature["geometry"]["coordinates"]]
+                ),
             }
             for feature in location_data["features"]
         ]
     )
-    location_df.to_csv("./data/location.tsv", index=False, sep="\t")
 
-    # Preprocess air quality data and save it to a TSV file
-    air_quality_dir = "./data/Air Quality"
+    location_df = pd.concat(
+        [
+            location_df,
+            pd.DataFrame(
+                [
+                    {
+                        "name": LocationName.THERMAIKOS_PORT,
+                        "multi_polygons": [
+                            [
+                                list(
+                                    map(
+                                        list,
+                                        zip(
+                                            thermaikos_data["Longitude"].tolist(),
+                                            thermaikos_data["Latitude"].tolist(),
+                                        ),
+                                    )
+                                )
+                            ]
+                        ],
+                    }
+                ]
+            ),
+        ],
+        ignore_index=True,
+    )
+
+    location_df.to_csv(f"{DATA_DIR}/location.tsv", index=False, sep="\t")
+    return location_df
+
+
+def _calculate_air_quality_index(df: pd.DataFrame, row: pd.Series) -> float:
+    pollutants = ["co", "no2", "so2", "o3"]
+    weights = {p: 1 for p in pollutants}  # Equal weighting; adjust as needed
+
+    weighted_sum = 0
+    total_weight = 0
+
+    for p in pollutants:
+        val = row[p]
+        if pd.isna(val):
+            continue
+
+        min_val = df[p].min()
+        max_val = df[p].max()
+        if min_val == max_val:
+            continue  # skip if no variation
+
+        norm = (val - min_val) / (max_val - min_val)
+
+        # Treat higher O3 as better (optional — flip normalization)
+        if p == "o3":
+            norm = 1 - norm
+
+        weighted_sum += weights[p] * norm
+        total_weight += weights[p]
+
+    if total_weight == 0:
+        return 0
+
+    aqi = 100 * (1 - weighted_sum / total_weight)
+    return round(aqi, 2)
+
+
+def _preprocess_air_quality_data(location_df: pd.DataFrame) -> pd.DataFrame:
+    air_quality_dir = f"{DATA_DIR}/Air Quality"
     air_quality_files = {
         d: [
             os.path.join(air_quality_dir, d, f)
@@ -56,34 +141,89 @@ def preprocess_data():
                 .reset_index()
             )
 
+            df_grouped["year"] = df_grouped["date"].dt.year
+
             # Find the closet location using fuzzy matching
             closest_location = max(
-                location_df["name"].tolist(),
+                filter(
+                    lambda location: location != LocationName.THERMAIKOS_PORT,
+                    location_df["name"],
+                ),
                 key=lambda loc: fuzz.ratio(location.lower(), loc.lower()),
             )
             df_grouped["location"] = closest_location
 
             merged_df = pd.concat([merged_df, df_grouped], ignore_index=True)
 
-    merged_df.to_csv("./data/air_quality.tsv", index=False, sep="\t")
+    # Calculate the air quality index
+    merged_df["air_quality_index"] = merged_df.apply(
+        lambda row: _calculate_air_quality_index(merged_df, row), axis=1
+    )
+    merged_df.to_csv(f"{DATA_DIR}/air_quality.tsv", index=False, sep="\t")
+    return merged_df
 
-    # Preprocess sea water data and save it to a TSV file
+
+def _calculate_sea_water_quality_index(row: pd.Series) -> float:
+    weights = {
+        "arsenic": 0.15,
+        "cadmium": 0.15,
+        "copper": 0.1,
+        "dissolved_oxygen_percentage": 0.25,
+        "lead": 0.1,
+        "nickel": 0.1,
+        "temperature": 0.15,
+    }
+
+    threshold_concentration = {
+        "arsenic": 0.012,
+        "cadmium": 0.0055,
+        "copper": 0.0013,
+        "lead": 0.0044,
+        "nickel": 0.07,
+        "dissolved_oxygen_percentage": 100,
+        "temperature": 20,
+    }
+
+    quality_index = 0
+    for parameter, value in row.items():
+        if (
+            parameter not in weights
+            or parameter not in threshold_concentration
+            or pd.isna(value)
+        ):
+            continue
+
+        weight = weights[parameter]
+        threshold = threshold_concentration[parameter]
+
+        if parameter == "temperature":
+            score = max(0, 100 * (1 - abs(value - threshold) / 10))
+        elif parameter == "dissolved_oxygen_percentage":
+            score = min(value, threshold)
+        else:
+            score = max(0, 100 * (1 - value / threshold))
+
+        quality_index += weight * score
+
+    return quality_index
+
+
+def _preprocess_sea_water_quality_data() -> pd.DataFrame:
     files = {
-        int(f.split("_")[1]): os.path.join("./data/Sea Water Quality", f)
-        for f in os.listdir("./data/Sea Water Quality")
+        int(f.split("_")[1]): os.path.join(f"{DATA_DIR}/Sea Water Quality", f)
+        for f in os.listdir(f"{DATA_DIR}/Sea Water Quality")
     }
     columns = {
-        "Θερμοκρασία": "temperature (c)",
-        "Θερμοκρασία κατά την λήψη του δείγματος": "temperature (c)",
-        "Διαλυμένο Οξυγόνο (mg/l)": "dissolved oxygen (mg/l)",
-        "Ποσοστό κορεσμού διαλυμένου οξυγόνου (% DO)": "dissolved oxygen (%)",
-        "Διαλυμένο Οξυγόνο (%)": "dissolved oxygen (%)",
-        "pH": "pH",
-        "Αρσενικό (mg/l)": "arsenic (mg/l)",
-        "Μόλυβδος (mg/l)": "lead (mg/l)",
-        "Κάδμιο (mg/l)": "cadmium (mg/l)",
-        "Νικέλιο (mg/l)": "nickel (mg/l)",
-        "Χαλκός (mg/l)": "copper (mg/l)",
+        "Θερμοκρασία": "temperature",
+        "Θερμοκρασία κατά την λήψη του δείγματος": "temperature",
+        "Διαλυμένο Οξυγόνο (mg/l)": "dissolved_oxygen",
+        "Ποσοστό κορεσμού διαλυμένου οξυγόνου (% DO)": "dissolved_oxygen_percentage",
+        "Διαλυμένο Οξυγόνο (%)": "dissolved_oxygen_percentage",
+        "Αρσενικό (mg/l)": "arsenic",
+        "Μόλυβδος (mg/l)": "lead",
+        "Κάδμιο (mg/l)": "cadmium",
+        "Νικέλιο (mg/l)": "nickel",
+        "Χαλκός (mg/l)": "copper",
     }
     ratio_threshold = 75
 
@@ -102,9 +242,6 @@ def preprocess_data():
         df["Result"] = (
             df["Result"].astype(str).str.extract(r"([-+]?\d*\.\d+|\d+)").astype(float)
         )
-
-        # If not unit is present for Ph, set it to pH
-        df.loc[df["Parameter"] == "pH", "Unit"] = "Μονάδες pH"
 
         # If unit is μg/l, convert to mg/l
         df.loc[df["Unit"] == "μg/L", "Result"] = (
@@ -132,30 +269,61 @@ def preprocess_data():
 
         # Group by parameter and take mean of each parameter
         df = df.groupby("Parameter").agg({"Result": "mean"}).reset_index()
-        df["Year"] = year
+        df["year"] = year
         df_pivot = df.pivot(
-            index="Year", columns="Parameter", values="Result"
+            index="year", columns="Parameter", values="Result"
         ).reset_index()
 
         merged_df = pd.concat([merged_df, df_pivot], ignore_index=True)
 
-    merged_df.to_csv("./data/sea_water_quality.tsv", index=False, sep="\t")
+    # Add the location column
+    merged_df["location"] = LocationName.THERMAIKOS_PORT
+
+    # Calculate the quality index
+    merged_df["water_quality_index"] = merged_df.apply(
+        _calculate_sea_water_quality_index, axis=1
+    )
+
+    merged_df.to_csv(f"{DATA_DIR}/sea_water_quality.tsv", index=False, sep="\t")
 
 
-def download_and_decompress_data():
+def preprocess_data():
+    """
+    This function preprocesses the original data and saves some new TSV files into the data directory.
+    The original data can be found in [Github Releases](https://github.com/KonstantinosPetrakis/airwave-thess/releases/tag/original-data).
+    """
+
+    location_df = _preprocess_location_data()
+    _preprocess_air_quality_data(location_df)
+    _preprocess_sea_water_quality_data()
+
+
+def _download_and_decompress_data():
     """
     This function downloads the preprocessed data from Github Releases and decompresses it.
+    If data already exists, it does nothing.
     """
     pass
 
 
-def load_data():
+def load_data() -> dict[str, pd.DataFrame | dict]:
     """
-    This function loads the preprocessed data from the TSV files into dataframes.
+    This function downloads the preprocessed TSV data from Github Releases and decompresses it.
+    Then it loads the data into dataframes and sometimes into dictionaries to make API faster to return them instantly.
     """
-    pass
+
+    _download_and_decompress_data()
+
+    location = pd.read_csv(f"{DATA_DIR}/location.tsv", sep="\t")
+    location["multi_polygons"] = location["multi_polygons"].map(json.loads)
+
+    return {
+        "location": location,
+        "location_dict": location.to_dict(orient="records"),
+        "air_quality": pd.read_csv(f"{DATA_DIR}/air_quality.tsv", sep="\t"),
+        "sea_water_quality": pd.read_csv(f"{DATA_DIR}/sea_water_quality.tsv", sep="\t"),
+    }
 
 
 if __name__ == "__main__":
-    # preprocess_data()
-    download_and_decompress_data()
+    preprocess_data()
