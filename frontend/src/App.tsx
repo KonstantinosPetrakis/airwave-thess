@@ -5,6 +5,7 @@ import "@fontsource/roboto/400.css";
 import "@fontsource/roboto/500.css";
 import "@fontsource/roboto/700.css";
 
+import { JSX } from "react";
 import { BrowserRouter, Routes, Route } from "react-router";
 
 import { ThemeProvider, createTheme } from "@mui/material/styles";
@@ -28,12 +29,11 @@ const theme = createTheme({
   },
 });
 
-function App() {
+function App(): JSX.Element {
   return (
     <>
       <ThemeProvider theme={theme}>
         <LocalizationProvider dateAdapter={AdapterDayjs}>
-          {/* Date adapter can be set to a specific one, e.g., AdapterDayjs */}
           <CssBaseline />
           <BrowserRouter>
             <AppBar />

@@ -1,4 +1,6 @@
-export default function Indexes() {
+import { JSX } from "react";
+
+export default function Indexes(): JSX.Element {
   return (
     <div>
       <h1>Indexes</h1>

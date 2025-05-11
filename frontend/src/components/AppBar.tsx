@@ -1,10 +1,11 @@
+import { JSX } from "react";
 import { Link } from "react-router";
 
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import MuiLink from "@mui/material/Link";
 
-export default function AppBar() {
+export default function AppBar(): JSX.Element {
   return (
     <Stack
       direction="row"
