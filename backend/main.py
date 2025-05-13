@@ -124,9 +124,14 @@ def report(
             from_date, to_date, inclusive="both"
         )
     ]
+
     sea_water_quality_data_view = sea_water_quality_data_view.drop(columns=["year"])
-    sea_water_quality_data_view = pd.DataFrame(
-        [sea_water_quality_data_view.mean(numeric_only=True)]
+
+    # If there are no records in the date range, return an empty DataFrame
+    sea_water_quality_data_view = (
+        pd.DataFrame()
+        if sea_water_quality_data_view.shape[0] == 0
+        else pd.DataFrame([sea_water_quality_data_view.mean(numeric_only=True)])
     )
     sea_water_quality_data_view["location"] = sea_water_quality["location"][0]
 

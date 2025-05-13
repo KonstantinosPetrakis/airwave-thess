@@ -13,7 +13,6 @@ TODO: Update the original data because their outdated.
 TODO: Upload the preprocessed data to Github Releases and decompress it.
 """
 
-import random
 import json
 import os
 
@@ -77,37 +76,33 @@ def _preprocess_location_data() -> pd.DataFrame:
     return location_df
 
 
-def _calculate_air_quality_index(df: pd.DataFrame, row: pd.Series) -> float:
-    pollutants = ["co", "no2", "so2", "o3"]
-    weights = {p: 1 for p in pollutants}  # Equal weighting; adjust as needed
+def _calculate_air_quality_index(row: pd.Series) -> float:
+    levels = {
+        "o3": [0, 50, 100, 130, 240, 380, 800],
+        "no2": [0, 40, 90, 120, 210, 400, 600],
+        "so2": [0, 100, 200, 350, 500, 750, 1000],
+        "co": [0, 4400, 9400],
+    }
 
-    weighted_sum = 0
-    total_weight = 0
-
-    for p in pollutants:
-        val = row[p]
-        if pd.isna(val):
+    indicators = []
+    for key in levels.keys():
+        if key not in row:
             continue
 
-        min_val = df[p].min()
-        max_val = df[p].max()
-        if min_val == max_val:
-            continue  # skip if no variation
+        value = row[key]
+        level_high = next((x for x in levels[key] if x >= value), None)
+        level_low = next((x for x in reversed(levels[key]) if x <= value), None)
+        index_low = levels[key].index(level_low) + 1
+        index_high = levels[key].index(level_high) + 1
 
-        norm = (val - min_val) / (max_val - min_val)
 
-        # Treat higher O3 as better (optional — flip normalization)
-        if p == "o3":
-            norm = 1 - norm
+        indicator = index_low + (index_high - index_low) * (value - level_low) / (
+            level_high - level_low
+        )
 
-        weighted_sum += weights[p] * norm
-        total_weight += weights[p]
+        indicators.append(indicator)
 
-    if total_weight == 0:
-        return 0
-
-    aqi = 100 * (1 - weighted_sum / total_weight)
-    return round(aqi, 2)
+    return max(indicators)
 
 
 def _preprocess_air_quality_data(location_df: pd.DataFrame) -> pd.DataFrame:
@@ -157,7 +152,7 @@ def _preprocess_air_quality_data(location_df: pd.DataFrame) -> pd.DataFrame:
 
     # Calculate the air quality index
     merged_df["air_quality_index"] = merged_df.apply(
-        lambda row: _calculate_air_quality_index(merged_df, row), axis=1
+        _calculate_air_quality_index, axis=1
     )
     merged_df.to_csv(f"{DATA_DIR}/air_quality.tsv", index=False, sep="\t")
     return merged_df

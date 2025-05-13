@@ -1,20 +1,19 @@
 # AirWave Thess
 
-## Functional Requirements
+## Requirements
 
-- Charts:
+- Indexes Page
+- About Page
+- Maybe make the story mode monthly instead of yearly
 
-  - Historical trends (line charts)
+- LLM (chatbot) using ollama:
 
-    - Air Quality Index
-    - Water Quality Index
-
-  - Top N areas
-    - Air Quality Index and other attributes (via tab)
-
-- LLM (chatbot):
   - Learn what metrics mean
   - Learn about the data source
   - Query for specific data
   - Talk about trends
   - Other questions related to the data
+
+- Containerization with Docker
+
+- Demo Video

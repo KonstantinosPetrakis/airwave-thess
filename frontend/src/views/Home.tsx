@@ -1,4 +1,5 @@
 import React, { useState, useEffect, JSX } from "react";
+import { Link } from "react-router";
 import dayjs, { Dayjs } from "dayjs";
 
 import Typography from "@mui/material/Typography";
@@ -20,8 +21,16 @@ import Stepper from "@mui/material/Stepper";
 import Step from "@mui/material/Step";
 import StepLabel from "@mui/material/StepLabel";
 import Button from "@mui/material/Button";
+import Box from "@mui/material/Box";
+import MuiLink from "@mui/material/Link";
+import Tabs from "@mui/material/Tabs";
+import Tab from "@mui/material/Tab";
 
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
+
+import { ChartsLegendProps, LineSeriesType } from "@mui/x-charts";
+import { LineChart } from "@mui/x-charts/LineChart";
+import { BarChart } from "@mui/x-charts/BarChart";
 import { useTheme } from "@mui/material/styles";
 
 import { MapContainer } from "react-leaflet/MapContainer";
@@ -30,9 +39,11 @@ import { Polygon } from "react-leaflet/Polygon";
 import { Tooltip } from "react-leaflet/Tooltip";
 
 import {
-  getColorFromIndicator,
+  getColorFromSeaWaterIndicator,
+  getColorFromAirIndicator,
   formatCellValue,
   makeAttributeHumanReadable,
+  chartPalette,
 } from "../helpers";
 import Loader from "../components/Loader";
 import {
@@ -45,6 +56,11 @@ import {
 import { getLocations, getReport } from "../network";
 
 type ViewMode = "data_mode" | "story_mode" | "compare_mode";
+
+type LineSeries = LineSeriesType & {
+  label: string; // Don't plan to use the callback function
+  hidden?: boolean; // Add a hidden property to the LineSeries type so we can use it in the legend
+};
 
 function ReportFilters({
   dateFrom,
@@ -233,7 +249,9 @@ function LocationMultiPolygon({
     ? (qualityObject as SeaWaterQuality).avg_water_quality_index
     : (qualityObject as AirQuality).avg_air_quality_index;
 
-  const color = getColorFromIndicator(indicator);
+  const color = isSeaWaterQuality
+    ? getColorFromSeaWaterIndicator(indicator)
+    : getColorFromAirIndicator(indicator);
 
   return (
     <>
@@ -420,6 +438,216 @@ function Map({
   );
 }
 
+function ToggleLegend({
+  lines,
+  setLines,
+}: {
+  lines: LineSeries[];
+  setLines: React.Dispatch<React.SetStateAction<LineSeries[]>>;
+}): JSX.Element {
+  const handleToggle = (line: LineSeries) => {
+    console.log(line);
+    setLines((prevLines) =>
+      prevLines.map((l) =>
+        l.label === line.label ? { ...l, hidden: !l.hidden } : l
+      )
+    );
+  };
+
+  return (
+    <Stack
+      component="ul"
+      direction="row"
+      flexWrap="wrap"
+      spacing={2}
+      justifyContent="center"
+      alignItems="center"
+      sx={{ listStyle: "none", padding: 0 }}
+    >
+      {lines.map((line) => (
+        <Stack
+          key={`${line.label}-legend`}
+          component="li"
+          direction="row"
+          alignItems="center"
+          spacing={0.5}
+          onClick={() => handleToggle(line)}
+          sx={{
+            cursor: "pointer",
+            textDecoration: line.hidden ? "line-through" : "none",
+            "&:hover": {
+              filter: "brightness(1.1)",
+            },
+          }}
+        >
+          <Box
+            sx={{
+              height: "0.22rem",
+              width: "1rem",
+              backgroundColor: line.color,
+            }}
+          />
+          <Typography fontSize="0.75rem">{line.label} </Typography>
+        </Stack>
+      ))}
+    </Stack>
+  );
+}
+
+function HistoricalTrends({ report }: { report: Report }): JSX.Element {
+  const [airQualityLines, setAirQualityLines] = useState<LineSeries[]>([]);
+  const [seaWaterQualityLines, setSeaWaterQualityLines] = useState<
+    LineSeries[]
+  >([]);
+
+  useEffect(() => {
+    const airQualityLines = report.air_quality_history.lines.map((line, i) => ({
+      name: line.location,
+      label: line.location,
+      color: chartPalette[i % chartPalette.length],
+      data: line.values,
+      showMark: false,
+      type: "line" as const,
+    }));
+
+    const seaWaterQualityLines = report.water_quality_history.lines.map(
+      (line, i) => ({
+        name: line.location,
+        label: line.location,
+        color: chartPalette[i % chartPalette.length],
+        data: line.values,
+        showMark: false,
+        type: "line" as const,
+      })
+    );
+
+    setAirQualityLines(airQualityLines);
+    setSeaWaterQualityLines(seaWaterQualityLines);
+  }, [report]);
+
+  return (
+    <>
+      <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
+        Historical Trends
+      </Typography>
+
+      <Stack
+        direction={{ xs: "column", lg: "row" }}
+        spacing={2}
+        height={{ xs: "100%", lg: "400px" }}
+        alignContent="center"
+      >
+        <Stack width={{ xs: "100%", lg: "50%" }} direction="column">
+          <Typography gutterBottom>Air Quality</Typography>
+          <LineChart
+            title="Air Quality"
+            xAxis={[
+              {
+                data: report.air_quality_history.labels,
+                scaleType: "band",
+              },
+            ]}
+            series={airQualityLines.filter((line) => !line.hidden)}
+            margin={{ top: 0, right: 0, bottom: 0, left: 0 }}
+            sx={{ height: "100%" }}
+            slots={{ legend: ToggleLegend as React.FC<ChartsLegendProps> }}
+            slotProps={{
+              legend: {
+                lines: airQualityLines,
+                setLines: setAirQualityLines,
+              } as ChartsLegendProps,
+            }}
+          />
+        </Stack>
+        <Stack width={{ xs: "100%", lg: "50%" }} direction="column">
+          <Typography gutterBottom>Sea Water Quality</Typography>
+          <LineChart
+            title="Sea Water Quality"
+            xAxis={[
+              {
+                data: report.water_quality_history.labels,
+                scaleType: "band",
+              },
+            ]}
+            series={seaWaterQualityLines.filter((line) => !line.hidden)}
+            margin={{ top: 0, right: 0, bottom: 0, left: 0 }}
+            sx={{ height: "100%" }}
+            slots={{ legend: ToggleLegend as React.FC<ChartsLegendProps> }}
+            slotProps={{
+              legend: {
+                lines: seaWaterQualityLines,
+                setLines: setSeaWaterQualityLines,
+              } as ChartsLegendProps,
+            }}
+          />
+        </Stack>
+      </Stack>
+    </>
+  );
+}
+
+export function TopAreas({ report }: { report: Report }): JSX.Element {
+  const theme = useTheme();
+
+  const [metric, setMetric] = useState<
+    "avg_air_quality_index" | "avg_co" | "avg_no2" | "avg_so2" | "avg_o3"
+  >("avg_air_quality_index");
+
+  const metrics = [
+    "avg_air_quality_index",
+    "avg_co",
+    "avg_no2",
+    "avg_so2",
+    "avg_o3",
+  ];
+
+  const metricsLabels = metrics.map((m) => makeAttributeHumanReadable(m));
+
+  const topAreas = report.air_quality_data_view
+    .sort((a, b) => a[metric] - b[metric])
+    .slice(0, 5);
+
+  return (
+    <>
+      <Typography variant="h6" gutterBottom>
+        Areas with the best Air Quality
+      </Typography>
+
+      <Tabs value={metric} onChange={(_, newValue) => setMetric(newValue)}>
+        {metrics.map((metric, index) => (
+          <Tab key={metric} label={metricsLabels[index]} value={metric} />
+        ))}
+      </Tabs>
+
+      <BarChart
+        title="Top Areas"
+        layout="horizontal"
+        xAxis={[
+          {
+            scaleType: "linear",
+          },
+        ]}
+        yAxis={[
+          {
+            data: topAreas.map((area) => area.location),
+            scaleType: "band",
+            width: 250,
+          },
+        ]}
+        series={[
+          {
+            data: topAreas.map((area) => area[metric] ?? 0),
+            type: "bar",
+            color: theme.palette.primary.main,
+          },
+        ]}
+        margin={{ top: 10, right: 10, bottom: 10, left: 60 }}
+        sx={{ width: "100%", height: "300px" }}
+      />
+    </>
+  );
+}
+
 export default function Home(): JSX.Element {
   // ------------ Filters State ------------
   const [dateFrom, setDateFrom] = useState<Dayjs | null>(dayjs("2020-01-01"));
@@ -465,13 +693,17 @@ export default function Home(): JSX.Element {
   if (loading || !report) return <Loader />;
 
   return (
-    <Stack>
+    <Stack spacing={3}>
       <Typography variant="h4" component="h1" sx={{ pt: 1 }}>
-        AirWaveThess Report Creation
+        AirWaveThess Report Overview
       </Typography>
+
       <Typography variant="body1">
-        In this page you can create a report regarding sea water and air quality
-        of Thessaloniki!
+        In this page you can create a report regarding sea water and air{" "}
+        <MuiLink component={Link} to="/indexes">
+          quality
+        </MuiLink>{" "}
+        in the area of Thessaloniki!
       </Typography>
 
       <Stack direction={{ xs: "column", lg: "row" }} spacing={1} sx={{ mt: 3 }}>
@@ -500,7 +732,9 @@ export default function Home(): JSX.Element {
         <ComparisonTable report={report} compareLocations={compareLocations} />
       )}
 
-      <div style={{ height: "100px" }} />
+      <HistoricalTrends report={report} />
+
+      <TopAreas report={report} />
     </Stack>
   );
 }
