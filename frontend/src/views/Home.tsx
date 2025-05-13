@@ -540,7 +540,6 @@ function HistoricalTrends({ report }: { report: Report }): JSX.Element {
         <Stack width={{ xs: "100%", lg: "50%" }} direction="column">
           <Typography gutterBottom>Air Quality</Typography>
           <LineChart
-            title="Air Quality"
             xAxis={[
               {
                 data: report.air_quality_history.labels,
@@ -562,7 +561,6 @@ function HistoricalTrends({ report }: { report: Report }): JSX.Element {
         <Stack width={{ xs: "100%", lg: "50%" }} direction="column">
           <Typography gutterBottom>Sea Water Quality</Typography>
           <LineChart
-            title="Sea Water Quality"
             xAxis={[
               {
                 data: report.water_quality_history.labels,
@@ -620,7 +618,6 @@ export function TopAreas({ report }: { report: Report }): JSX.Element {
       </Tabs>
 
       <BarChart
-        title="Top Areas"
         layout="horizontal"
         xAxis={[
           {
