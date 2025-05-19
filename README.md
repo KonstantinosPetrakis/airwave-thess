@@ -4,7 +4,6 @@
 
 - Indexes Page
 - About Page
-- Maybe make the story mode monthly instead of yearly
 
 - LLM (chatbot) using ollama:
 

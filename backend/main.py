@@ -36,9 +36,9 @@ def locations() -> list[Location]:
 @app.get(f"/date-range")
 def date_range() -> DateRange:
     min_air_quality_date = pd.to_datetime(air_quality["date"].min())
-    min_sea_water_quality_date = pd.to_datetime(str(sea_water_quality["year"].min()))
+    min_sea_water_quality_date = pd.to_datetime(sea_water_quality["date"].min())
     max_air_quality_date = pd.to_datetime(air_quality["date"].max())
-    max_sea_water_quality_date = pd.to_datetime(str(sea_water_quality["year"].max()))
+    max_sea_water_quality_date = pd.to_datetime(sea_water_quality["date"].max())
 
     return {
         "from_date": min(min_air_quality_date, min_sea_water_quality_date).date(),
@@ -75,8 +75,11 @@ def report(
     to_date = pd.Timestamp(to_date)
 
     # Air Quality Story View
-    air_quality_story_view = air_quality.groupby(
-        ["location", "year"], as_index=False
+    air_quality_story_view = air_quality.copy()
+    air_quality_story_view["period"] = air_quality_story_view["date"]
+
+    air_quality_story_view = air_quality_story_view.groupby(
+        ["location", "period"], as_index=False
     ).mean(numeric_only=True)
 
     air_quality_story_view = helpers.rename_air_quality_columns(air_quality_story_view)
@@ -86,6 +89,12 @@ def report(
 
     # Water Quality Story View
     sea_water_quality_story_view = sea_water_quality.copy()
+    sea_water_quality_story_view["period"] = sea_water_quality_story_view["date"]
+
+    sea_water_quality_story_view = sea_water_quality_story_view.groupby(
+        ["location", "period"], as_index=False
+    ).mean(numeric_only=True)
+
     sea_water_quality_story_view = helpers.rename_sea_water_quality_columns(
         sea_water_quality_story_view
     )
@@ -117,15 +126,14 @@ def report(
     # Sea Water Quality Data View
     sea_water_quality_data_view = sea_water_quality.copy()
     sea_water_quality_data_view["date"] = pd.to_datetime(
-        sea_water_quality_data_view["year"], format="%Y"
+        sea_water_quality_data_view["date"], format="%Y-%m"
     )
     sea_water_quality_data_view = sea_water_quality_data_view[
         sea_water_quality_data_view["date"].between(
             from_date, to_date, inclusive="both"
         )
     ]
-
-    sea_water_quality_data_view = sea_water_quality_data_view.drop(columns=["year"])
+    water_quality_filtered = sea_water_quality_data_view.copy()
 
     # If there are no records in the date range, return an empty DataFrame
     sea_water_quality_data_view = (
@@ -143,7 +151,7 @@ def report(
         np.nan, None
     ).to_dict(orient="records")
 
-    # Air Quality History
+    # Air Quality History (monthly)
     # Prepare the grouped data
     aq_grouped = air_quality_filtered_and_grouped.obj
 
@@ -175,15 +183,21 @@ def report(
         "lines": lines,
     }
 
-    # Water Quality History
-    sea_water_quality_sorted = sea_water_quality.sort_values("year")
+    # Water Quality History (yearly, like the original data)
+    sea_water_yearly_avg = (
+        water_quality_filtered.groupby("year")["water_quality_index"]
+        .mean()
+        .reset_index()
+    )
+    sea_water_quality_sorted = sea_water_yearly_avg.sort_values("year")
     labels = sea_water_quality_sorted["year"].astype(str).tolist()
     values = sea_water_quality_sorted["water_quality_index"].tolist()
+
     water_quality_history = {
         "labels": labels,
         "lines": [
             {
-                "location": sea_water_quality_sorted["location"].iloc[0],
+                "location": water_quality_filtered["location"].iloc[0],
                 "values": values,
             }
         ],

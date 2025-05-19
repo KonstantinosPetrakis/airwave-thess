@@ -15,7 +15,7 @@ import Container from "@mui/material/Container";
 
 import AppBar from "./components/AppBar";
 import Home from "./views/Home";
-import Indexes from "./views/Indexes";
+import Quality from "./views/Quality";
 import About from "./views/About";
 
 const theme = createTheme({
@@ -41,7 +41,7 @@ function App(): JSX.Element {
               <Routes>
                 <Route path="/" element={<Home />} />
                 <Route path="/about" element={<About />} />
-                <Route path="/indexes" element={<Indexes />} />
+                <Route path="/quality" element={<Quality />} />
               </Routes>
             </Container>
           </BrowserRouter>

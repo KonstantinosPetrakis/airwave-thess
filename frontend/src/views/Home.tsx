@@ -20,7 +20,6 @@ import Autocomplete from "@mui/material/Autocomplete";
 import Stepper from "@mui/material/Stepper";
 import Step from "@mui/material/Step";
 import StepLabel from "@mui/material/StepLabel";
-import Button from "@mui/material/Button";
 import Box from "@mui/material/Box";
 import MuiLink from "@mui/material/Link";
 import Tabs from "@mui/material/Tabs";
@@ -215,12 +214,12 @@ function LocationMultiPolygon({
   location,
   report,
   viewMode,
-  year,
+  period,
 }: {
   location: Location;
   report: Report;
   viewMode: ViewMode;
-  year: number | null;
+  period: string | null;
 }): JSX.Element {
   const theme = useTheme();
   const isSeaWaterQuality = location.name === LocationName.THERMAIKOS_PORT;
@@ -232,7 +231,7 @@ function LocationMultiPolygon({
       : report.air_quality_story_view;
 
     qualityObject = qualityObjs.filter(
-      (r) => r.location === location.name && r.year === year
+      (r) => r.location === location.name && r.period === period
     )[0];
   } else {
     const qualityObjs = isSeaWaterQuality
@@ -317,69 +316,44 @@ function StoryStepper({
   setCurrentStep,
 }: {
   viewMode: ViewMode;
-  steps: number[];
+  steps: string[];
   currentStep: number;
   setCurrentStep: React.Dispatch<React.SetStateAction<number>>;
 }): JSX.Element {
-  const [userReacted, setUserReacted] = useState(false);
-
-  // Reset the user reaction when the view mode changes
-  useEffect(() => {
-    setUserReacted(false);
-  }, [viewMode]);
+  // Only show years to avoid huge stepper
+  const years = steps.map((period) => period.slice(0, 4)).filter((year, index, self) => self.indexOf(year) === index)
+  const currentYear = steps[currentStep].slice(0, 4)
+  const currentYearIndex = years.indexOf(currentYear)
 
   // If the user has not reacted make story mode auto-play, if user has reacted stop auto-play
   useEffect(() => {
     if (viewMode !== "story_mode") return;
 
     const interval = setInterval(() => {
-      if (!userReacted) setCurrentStep((prev) => (prev + 1) % steps.length);
-    }, 2000);
+      setCurrentStep((prev) => (prev + 1) % steps.length);
+    }, 300);
 
     return () => clearInterval(interval);
-  }, [setCurrentStep, userReacted, steps, viewMode]);
+  }, [setCurrentStep, steps, viewMode]);
 
   if (viewMode !== "story_mode") return <></>;
 
   return (
-    <Stack direction="row">
-      <Button
-        sx={{ fontSize: "2rem" }}
-        title="Previous"
-        disabled={currentStep === 0}
-        onClick={() => {
-          setCurrentStep((prev) => prev - 1);
-          setUserReacted(true);
-        }}
-      >
-        -
-      </Button>
-      <Stepper
-        activeStep={currentStep}
-        sx={{
-          my: 1,
-          flexWrap: "wrap",
-          gap: 1,
-          justifyContent: "center",
-        }}
-      >
-        {steps.map((year) => (
+    <Stack alignItems="center">
+      <Typography variant="h6" align="center"
+        sx={{ width: 'fit-content', p: 1, borderRadius: 2.5, background: (theme) => theme.palette.primary.main, color: 'white' }}> {steps[currentStep]} </Typography>
+      <Stepper activeStep={currentYearIndex} sx={{
+        my: 1,
+        flexWrap: "wrap",
+        gap: 1,
+        justifyContent: "center",
+      }}>
+        {years.map((year) => (
           <Step key={year}>
-            <StepLabel>{year}</StepLabel>
+            <StepLabel> {year} </StepLabel>
           </Step>
         ))}
       </Stepper>
-      <Button
-        sx={{ fontSize: "2rem" }}
-        title="Next"
-        disabled={currentStep === steps.length - 1}
-        onClick={() => {
-          setCurrentStep((prev) => prev + 1);
-          setUserReacted(true);
-        }}
-      >
-        +
-      </Button>
     </Stack>
   );
 }
@@ -398,9 +372,9 @@ function Map({
   const [currentStep, setCurrentStep] = useState(0);
 
   const steps = report.air_quality_story_view
-    .map((r) => r.year)
-    .concat(report.sea_water_quality_story_view.map((r) => r.year))
-    .filter((year, index, self) => self.indexOf(year) === index)
+    .map((r) => r.period)
+    .concat(report.sea_water_quality_story_view.map((r) => r.period))
+    .filter((period, index, self) => self.indexOf(period) === index)
     .sort();
 
   return (
@@ -422,6 +396,8 @@ function Map({
       >
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
 
+        <Typography sx={{zIndex: 2000}}> Hello World </Typography>
+
         {(viewMode === "compare_mode" ? compareLocations : locations).map(
           (location) => (
             <LocationMultiPolygon
@@ -429,7 +405,7 @@ function Map({
               location={location}
               report={report}
               viewMode={viewMode}
-              year={steps[currentStep]}
+              period={steps[currentStep]}
             />
           )
         )}
@@ -536,7 +512,7 @@ function HistoricalTrends({ report }: { report: Report }): JSX.Element {
         spacing={2}
         height={{ xs: "100%", lg: "400px" }}
         alignContent="center"
-      >
+      >στεπ
         <Stack width={{ xs: "100%", lg: "50%" }} direction="column">
           <Typography gutterBottom>Air Quality</Typography>
           <LineChart
@@ -697,7 +673,7 @@ export default function Home(): JSX.Element {
 
       <Typography variant="body1">
         In this page you can create a report regarding sea water and air{" "}
-        <MuiLink component={Link} to="/indexes">
+        <MuiLink component={Link} to="/quality">
           quality
         </MuiLink>{" "}
         in the area of Thessaloniki!

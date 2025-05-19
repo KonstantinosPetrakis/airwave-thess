@@ -95,7 +95,6 @@ def _calculate_air_quality_index(row: pd.Series) -> float:
         index_low = levels[key].index(level_low) + 1
         index_high = levels[key].index(level_high) + 1
 
-
         indicator = index_low + (index_high - index_low) * (value - level_low) / (
             level_high - level_low
         )
@@ -278,6 +277,14 @@ def _preprocess_sea_water_quality_data() -> pd.DataFrame:
     merged_df["water_quality_index"] = merged_df.apply(
         _calculate_sea_water_quality_index, axis=1
     )
+
+    # Fake monthly data
+    months = [f"{month:02}" for month in range(1, 13)]
+    merged_df_len = len(merged_df)
+    merged_df: pd.DataFrame = merged_df.loc[merged_df.index.repeat(12)].copy()
+    merged_df["month"] = months * merged_df_len
+    merged_df["date"] = merged_df["year"].astype(str) + "-" + merged_df["month"]
+    merged_df.drop(columns=["month"], inplace=True)
 
     merged_df.to_csv(f"{DATA_DIR}/sea_water_quality.tsv", index=False, sep="\t")
 

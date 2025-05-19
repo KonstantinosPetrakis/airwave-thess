@@ -51,8 +51,8 @@ class SeaWaterQuality(BaseModel):
     avg_water_quality_index: float
 
 
-class ReportStoryViewSeaWaterYear(SeaWaterQuality):
-    year: int
+class ReportStoryViewSeaWaterPeriod(SeaWaterQuality):
+    period: str
 
 
 class AirQuality(BaseModel):
@@ -65,8 +65,8 @@ class AirQuality(BaseModel):
     avg_air_quality_index: float
 
 
-class ReportStoryViewAirQualityYear(AirQuality):
-    year: int
+class ReportStoryViewAirQualityPeriod(AirQuality):
+    period: str
 
 
 class AirQualityHistoryLine(BaseModel):
@@ -90,8 +90,8 @@ class WaterQualityHistory(BaseModel):
 
 
 class Report(BaseModel):
-    air_quality_story_view: list[ReportStoryViewAirQualityYear]
-    sea_water_quality_story_view: list[ReportStoryViewSeaWaterYear]
+    air_quality_story_view: list[ReportStoryViewAirQualityPeriod]
+    sea_water_quality_story_view: list[ReportStoryViewSeaWaterPeriod]
     air_quality_data_view: list[AirQuality]
     sea_water_quality_data_view: list[SeaWaterQuality]
     air_quality_history: AirQualityHistory

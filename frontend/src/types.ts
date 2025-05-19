@@ -44,8 +44,8 @@ export interface SeaWaterQuality {
   avg_water_quality_index: number;
 }
 
-export interface ReportStoryViewSeaWaterYear extends SeaWaterQuality {
-  year: number;
+export interface ReportStoryViewSeaWaterPeriod extends SeaWaterQuality {
+  period: string;
 }
 
 export interface AirQuality {
@@ -58,8 +58,8 @@ export interface AirQuality {
   avg_air_quality_index: number;
 }
 
-export interface ReportStoryViewAirQualityYear extends AirQuality {
-  year: number;
+export interface ReportStoryViewAirQualityPeriod extends AirQuality {
+  period: string;
 }
 
 export interface AirQualityHistoryLine {
@@ -83,8 +83,8 @@ export interface WaterQualityHistory {
 }
 
 export interface Report {
-  air_quality_story_view: ReportStoryViewAirQualityYear[];
-  sea_water_quality_story_view: ReportStoryViewSeaWaterYear[];
+  air_quality_story_view: ReportStoryViewAirQualityPeriod[];
+  sea_water_quality_story_view: ReportStoryViewSeaWaterPeriod[];
   air_quality_data_view: AirQuality[];
   sea_water_quality_data_view: SeaWaterQuality[];
   air_quality_history: AirQualityHistory;
