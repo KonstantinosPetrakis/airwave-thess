@@ -3,7 +3,6 @@
 ## Requirements
 
 - Indexes Page
-- About Page
 
 - LLM (chatbot) using ollama:
 
