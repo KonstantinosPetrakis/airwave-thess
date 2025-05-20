@@ -321,9 +321,11 @@ function StoryStepper({
   setCurrentStep: React.Dispatch<React.SetStateAction<number>>;
 }): JSX.Element {
   // Only show years to avoid huge stepper
-  const years = steps.map((period) => period.slice(0, 4)).filter((year, index, self) => self.indexOf(year) === index)
-  const currentYear = steps[currentStep].slice(0, 4)
-  const currentYearIndex = years.indexOf(currentYear)
+  const years = steps
+    .map((period) => period.slice(0, 4))
+    .filter((year, index, self) => self.indexOf(year) === index);
+  const currentYear = steps[currentStep].slice(0, 4);
+  const currentYearIndex = years.indexOf(currentYear);
 
   // If the user has not reacted make story mode auto-play, if user has reacted stop auto-play
   useEffect(() => {
@@ -340,14 +342,29 @@ function StoryStepper({
 
   return (
     <Stack alignItems="center">
-      <Typography variant="h6" align="center"
-        sx={{ width: 'fit-content', p: 1, borderRadius: 2.5, background: (theme) => theme.palette.primary.main, color: 'white' }}> {steps[currentStep]} </Typography>
-      <Stepper activeStep={currentYearIndex} sx={{
-        my: 1,
-        flexWrap: "wrap",
-        gap: 1,
-        justifyContent: "center",
-      }}>
+      <Typography
+        variant="h6"
+        align="center"
+        sx={{
+          width: "fit-content",
+          p: 1,
+          borderRadius: 2.5,
+          background: (theme) => theme.palette.primary.main,
+          color: "white",
+        }}
+      >
+        {" "}
+        {steps[currentStep]}{" "}
+      </Typography>
+      <Stepper
+        activeStep={currentYearIndex}
+        sx={{
+          my: 1,
+          flexWrap: "wrap",
+          gap: 1,
+          justifyContent: "center",
+        }}
+      >
         {years.map((year) => (
           <Step key={year}>
             <StepLabel> {year} </StepLabel>
@@ -369,6 +386,7 @@ function Map({
   locations: Location[];
   report: Report;
 }): JSX.Element {
+  const theme = useTheme();
   const [currentStep, setCurrentStep] = useState(0);
 
   const steps = report.air_quality_story_view
@@ -377,8 +395,25 @@ function Map({
     .filter((period, index, self) => self.indexOf(period) === index)
     .sort();
 
+  const legendTitleProps = {
+    variant: "body2",
+    sx: {
+      backgroundColor: theme.palette.primary.main,
+      color: theme.palette.getContrastText(theme.palette.primary.main),
+      padding: 0.5,
+      borderRadius: 2,
+    },
+  } as const;
+
   return (
-    <Stack sx={{ width: "100%" }}>
+    <Stack
+      sx={{
+        width: "100%",
+        padding: 2,
+        background: theme.palette.primary.main,
+        borderRadius: 2,
+      }}
+    >
       <StoryStepper
         viewMode={viewMode}
         steps={steps}
@@ -396,7 +431,75 @@ function Map({
       >
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
 
-        <Typography sx={{zIndex: 2000}}> Hello World </Typography>
+        <Stack
+          sx={{
+            position: "absolute",
+            top: 10,
+            left: 10,
+            zIndex: 1000,
+            padding: 1,
+            backgroundColor: "rgba(255, 255, 255, 0.6)",
+            backdropFilter: "blur(8px)",
+            boxShadow: 3,
+            borderRadius: 2,
+          }}
+          direction="row"
+          justifyContent="center"
+          spacing={2}
+        >
+          <Stack alignItems="center">
+            <Typography {...legendTitleProps}>Air Quality</Typography>
+            <ul style={{ listStyle: "none", padding: 0 }}>
+              {[
+                "good",
+                "fair",
+                "moderate",
+                "poor",
+                "unhealthy for sensitive groups",
+                "unhealthy",
+              ].map((quality, index) => (
+                <Stack
+                  component="li"
+                  key={quality}
+                  direction="row"
+                  alignItems="center"
+                  height="fit-content"
+                  spacing={0.5}
+                >
+                  <Box
+                    sx={{
+                      width: "15px",
+                      height: "5px",
+                      background: getColorFromAirIndicator(index),
+                    }}
+                  />
+
+                  <Typography variant="caption">{quality}</Typography>
+                </Stack>
+              ))}
+            </ul>
+          </Stack>
+          <Stack alignItems="center">
+            <Typography {...legendTitleProps}>Sea Water Quality</Typography>
+            <Typography variant="caption"> Best </Typography>
+            <Box
+              sx={{
+                width: 20,
+                height: 100,
+                borderRadius: 2,
+                border: "1px solid #ccc",
+                background: `linear-gradient(180deg, 
+                    ${getColorFromSeaWaterIndicator(0)} 0%, 
+                    ${getColorFromSeaWaterIndicator(25)} 25%, 
+                    ${getColorFromSeaWaterIndicator(50)} 50%, 
+                    ${getColorFromSeaWaterIndicator(75)} 75%, 
+                    ${getColorFromSeaWaterIndicator(100)} 100%)`,
+                mt: 1,
+              }}
+            />
+            <Typography variant="caption"> Worst </Typography>
+          </Stack>
+        </Stack>
 
         {(viewMode === "compare_mode" ? compareLocations : locations).map(
           (location) => (
@@ -512,7 +615,7 @@ function HistoricalTrends({ report }: { report: Report }): JSX.Element {
         spacing={2}
         height={{ xs: "100%", lg: "400px" }}
         alignContent="center"
-      >στεπ
+      >
         <Stack width={{ xs: "100%", lg: "50%" }} direction="column">
           <Typography gutterBottom>Air Quality</Typography>
           <LineChart
@@ -592,31 +695,32 @@ export function TopAreas({ report }: { report: Report }): JSX.Element {
           <Tab key={metric} label={metricsLabels[index]} value={metric} />
         ))}
       </Tabs>
-
-      <BarChart
-        layout="horizontal"
-        xAxis={[
-          {
-            scaleType: "linear",
-          },
-        ]}
-        yAxis={[
-          {
-            data: topAreas.map((area) => area.location),
-            scaleType: "band",
-            width: 250,
-          },
-        ]}
-        series={[
-          {
-            data: topAreas.map((area) => area[metric] ?? 0),
-            type: "bar",
-            color: theme.palette.primary.main,
-          },
-        ]}
-        margin={{ top: 10, right: 10, bottom: 10, left: 60 }}
-        sx={{ width: "100%", height: "300px" }}
-      />
+      <Stack height={200}>
+        <BarChart
+          layout="horizontal"
+          xAxis={[
+            {
+              scaleType: "linear",
+            },
+          ]}
+          yAxis={[
+            {
+              data: topAreas.map((area) => area.location),
+              scaleType: "band",
+              width: 200,
+            },
+          ]}
+          series={[
+            {
+              data: topAreas.map((area) => area[metric] ?? 0),
+              type: "bar",
+              color: theme.palette.primary.main,
+            },
+          ]}
+          margin={{ top: 10, right: 10, bottom: 10, left: 60 }}
+          sx={{ minHeight: 0, height: "100%" }}
+        />
+      </Stack>
     </>
   );
 }
