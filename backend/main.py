@@ -1,15 +1,19 @@
 from datetime import date
 
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import FastAPI, Query, status
+from fastapi import FastAPI, WebSocket, Query, status
 from fastapi.responses import JSONResponse
 import numpy as np
 import pandas as pd
+import httpx
+import json
 
 from .schemas import Location, Report, DateRange, ReportInvalidRange
 from .data import load_data
 from . import helpers
 
+OLLAMA_URL = "http://localhost:11434/api/generate"
+MODEL_NAME = "llama3.2"
 
 app = FastAPI()
 app.add_middleware(
@@ -21,6 +25,7 @@ app.add_middleware(
 )
 
 data = load_data()
+knowledge_prompt = data["prompt"]
 location_dict, air_quality, sea_water_quality = (
     data["location_dict"],
     data["air_quality"],
@@ -211,3 +216,35 @@ def report(
         "air_quality_history": air_quality_history,
         "water_quality_history": water_quality_history,
     }
+
+
+@app.websocket("/ws/generate")
+async def websocket_generate(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        data = await websocket.receive_text()
+        prompt = knowledge_prompt + json.loads(data).get("prompt", "")
+
+        payload = {
+            "model": MODEL_NAME,
+            "prompt": prompt,
+            "stream": True,
+            "temperature": 0,
+            "options": {"num_ctx": 8000},
+        }
+
+        async with httpx.AsyncClient(timeout=None) as client:
+            async with client.stream("POST", OLLAMA_URL, json=payload) as response:
+                async for line in response.aiter_lines():
+                    if not line.strip():
+                        continue
+                    msg = json.loads(line)
+                    token = msg.get("response")
+                    if token:
+                        await websocket.send_text(token)
+                    if msg.get("done"):
+                        break
+    except Exception as e:
+        await websocket.send_text(f"[ERROR] {e}")
+    finally:
+        await websocket.close()

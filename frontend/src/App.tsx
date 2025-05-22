@@ -14,6 +14,7 @@ import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import Container from "@mui/material/Container";
 
 import AppBar from "./components/AppBar";
+import Chat from "./components/Chat";
 import Home from "./views/Home";
 import Quality from "./views/Quality";
 import About from "./views/About";
@@ -44,6 +45,7 @@ function App(): JSX.Element {
                 <Route path="/quality" element={<Quality />} />
               </Routes>
             </Container>
+            <Chat />
           </BrowserRouter>
         </LocalizationProvider>
       </ThemeProvider>

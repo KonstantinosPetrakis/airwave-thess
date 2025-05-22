@@ -1,17 +1,11 @@
 # AirWave Thess
 
+<p>
+  <img src="frontend/public/logo.png" alt="AirWave Thess Logo" style="max-width:200px;">
+</p>
+
 ## Requirements
 
-- Indexes Page
-
-- LLM (chatbot) using ollama:
-
-  - Learn what metrics mean
-  - Learn about the data source
-  - Query for specific data
-  - Talk about trends
-  - Other questions related to the data
-
+- Add RAG for the chat-bot (maybe through a pre-processed TSV file that contains descriptions of rows of spreadsheets + embeddings)
 - Containerization with Docker
-
 - Demo Video

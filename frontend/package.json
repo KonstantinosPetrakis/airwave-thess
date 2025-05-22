@@ -18,6 +18,7 @@
     "@mui/x-charts": "^8.3.0",
     "@mui/x-date-pickers": "^8.3.0",
     "dayjs": "^1.11.13",
+    "katex": "^0.16.22",
     "leaflet": "^1.9.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

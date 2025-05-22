@@ -319,11 +319,15 @@ def load_data() -> dict[str, pd.DataFrame | dict]:
     location = pd.read_csv(f"{DATA_DIR}/location.tsv", sep="\t")
     location["multi_polygons"] = location["multi_polygons"].map(json.loads)
 
+    with open(f"{DATA_DIR}/prompt.txt", "r") as f:
+        prompt = f.read()
+
     return {
         "location": location,
         "location_dict": location.to_dict(orient="records"),
         "air_quality": pd.read_csv(f"{DATA_DIR}/air_quality.tsv", sep="\t"),
         "sea_water_quality": pd.read_csv(f"{DATA_DIR}/sea_water_quality.tsv", sep="\t"),
+        "prompt": prompt,
     }
 
 
