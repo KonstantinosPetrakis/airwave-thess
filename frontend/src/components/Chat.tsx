@@ -1,5 +1,7 @@
-import { JSX, useState } from "react";
+import { JSX, useState, useRef, useEffect } from "react";
 
+import CircularProgress from "@mui/material/CircularProgress";
+import DeleteIcon from "@mui/icons-material/Delete";
 import IconButton from "@mui/material/IconButton";
 import CloseIcon from "@mui/icons-material/Close";
 import SendIcon from "@mui/icons-material/Send";
@@ -10,77 +12,76 @@ import Alert from "@mui/material/Alert";
 import Chip from "@mui/material/Chip";
 import Fab from "@mui/material/Fab";
 import Box from "@mui/material/Box";
+import Markdown from "react-markdown";
+import rehypeKatex from "rehype-katex";
+import remarkMath from "remark-math";
 
-type Message = {
-  role: "user" | "assistant";
-  content: string;
-};
+import { sendMessage } from "../network";
+import { MessageRole, MessageList } from "../types";
 
 export default function Chat(): JSX.Element {
-  const [messages, setMessages] = useState<Message[]>([
-    { role: "assistant", content: "Hello! How can I assist you today?" },
+  const [messages, setMessages] = useState<MessageList>([
+    {
+      role: MessageRole.ASSISTANT,
+      content: "Hello! How can I assist you today?",
+    },
   ]);
   const [isChatOpen, setIsChatOpen] = useState<boolean>(false);
+  const [isAssistantTyping, setIsAssistantTyping] = useState<boolean>(false);
   const [input, setInput] = useState<string>("");
-  const [ws, setWs] = useState<WebSocket | null>(null);
   const [error, setError] = useState<string>("");
+  const messageContainerRef = useRef<HTMLDivElement>(null);
 
-  const handleSubmit = () => {
+  useEffect(() => {
+    if (!isChatOpen) return;
+    messageContainerRef.current?.scrollTo({
+      top: messageContainerRef.current.scrollHeight,
+      behavior: "smooth",
+    });
+  }, [isChatOpen, messages]);
+
+  const handleSubmit = async () => {
     if (!input) return setError("Please enter a prompt.");
-    if (ws) return setError("Please wait for the assistant to finish.");
+    if (isAssistantTyping)
+      return setError("Please wait for the assistant to finish typing.");
     setError("");
 
     const newMessages = messages.concat({
-      role: "user",
+      role: MessageRole.USER,
       content: input,
     });
     setMessages(newMessages);
     setInput("");
 
-    const socket = new WebSocket("ws://localhost:8000/ws/generate");
-    setWs(socket);
-
-    socket.onopen = () => {
-      socket.send(
-        JSON.stringify({
-          prompt: newMessages.map((m) => m.content).join("\n"),
-        })
-      );
-    };
-
-    socket.onmessage = (event) => {
-      setMessages((prev) => {
-        const isLastAssistant = prev[prev.length - 1]?.role === "assistant";
-        if (isLastAssistant) {
-          prev[prev.length - 1].content += event.data;
-          return [...prev];
-        }
-        return [...prev, { role: "assistant", content: event.data }];
-      });
-    };
-
-    socket.onerror = () => {
-      setError("An error occurred while connecting to the server.");
-    };
-
-    socket.onclose = () => {
-      setWs(null);
-    };
+    setIsAssistantTyping(true);
+    try {
+      const newMessagesWithResult = await sendMessage(newMessages);
+      setMessages(newMessagesWithResult);
+    } catch {
+      setError("Failed to send message");
+    }
+    setIsAssistantTyping(false);
   };
 
   return (
     <Box>
-      <Fab onClick={() => setIsChatOpen((prev) => !prev)}>
+      <Fab
+        onClick={() => setIsChatOpen((prev) => !prev)}
+        sx={{
+          position: "fixed",
+          zIndex: 1100,
+          bottom: 50,
+          right: 50,
+          width: 75,
+          height: 75,
+        }}
+      >
         <img
           src="/assistant.png"
           alt="Assistant"
           style={{
-            position: "fixed",
-            zIndex: 1100,
-            bottom: 50,
-            right: 50,
-            width: 75,
-            height: 75,
+            width: "100%",
+            height: "100%",
             borderRadius: "50%",
             border: "2px solid #000",
             boxShadow: "0 0 10px rgba(0, 0, 0, 0.5)",
@@ -113,9 +114,30 @@ export default function Chat(): JSX.Element {
           </IconButton>
         </Stack>
 
-        {error && <Alert severity="error">{error}</Alert>}
+        {error && (
+          <Alert severity="error" sx={{ my: 2 }}>
+            {error}
+          </Alert>
+        )}
 
-        <Stack sx={{ height: "100%", overflowY: "auto" }}>
+        {isAssistantTyping && (
+          <Stack
+            direction="row"
+            justifyContent="center"
+            alignItems="center"
+            sx={{ mb: 1 }}
+          >
+            <CircularProgress size={24} />
+            <Typography variant="body2" sx={{ ml: 1 }}>
+              Assistant is typing...
+            </Typography>
+          </Stack>
+        )}
+
+        <Stack
+          sx={{ height: "100%", overflowY: "auto", px: 1 }}
+          ref={messageContainerRef}
+        >
           {messages.map((message, index) => (
             <Stack
               key={index}
@@ -126,8 +148,14 @@ export default function Chat(): JSX.Element {
               sx={{ mb: 1 }}
             >
               <Chip
-                label={message.content}
-                title={message.content}
+                label={
+                  <Markdown
+                    remarkPlugins={[remarkMath]}
+                    rehypePlugins={[rehypeKatex]}
+                  >
+                    {message.content.replace(/<think>[\s\S]*?<\/think>/gi, "")}
+                  </Markdown>
+                }
                 color={message.role === "user" ? "primary" : "secondary"}
                 variant="outlined"
                 sx={{
@@ -158,9 +186,23 @@ export default function Chat(): JSX.Element {
           <IconButton
             color="primary"
             onClick={handleSubmit}
-            disabled={!input || !!ws}
+            disabled={!input || !!isAssistantTyping}
           >
             <SendIcon />
+          </IconButton>
+          <IconButton
+            color="primary"
+            onClick={() => {
+              setMessages([
+                {
+                  role: MessageRole.ASSISTANT,
+                  content: "Hello! How can I assist you today?",
+                },
+              ]);
+              setInput("");
+            }}
+          >
+            <DeleteIcon />
           </IconButton>
         </Stack>
       </Stack>

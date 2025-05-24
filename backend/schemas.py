@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, List
 from datetime import date
 from enum import Enum
 
@@ -21,6 +21,11 @@ class LocationName(str, Enum):
     THESSALONIKI = "Municipality of Thessaloniki"
     VOLVI = "Volvi Municipality"
     THERMAIKOS_PORT = "Thermaikos Port"
+
+
+class MessageRole(str, Enum):
+    USER = "user"
+    ASSISTANT = "assistant"
 
 
 class DateRange(BaseModel):
@@ -96,3 +101,11 @@ class Report(BaseModel):
     sea_water_quality_data_view: list[SeaWaterQuality]
     air_quality_history: AirQualityHistory
     water_quality_history: WaterQualityHistory
+
+
+class Message(BaseModel):
+    role: MessageRole
+    content: str
+
+
+MessageList = List[Message]

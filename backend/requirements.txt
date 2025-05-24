@@ -3,4 +3,5 @@ pandas
 openpyxl
 requests
 thefuzz
-websockets
+pandasql
+ollama

@@ -1,21 +1,30 @@
+"""
+Because of an Issue with Ollama, we can't stream the response when using tools, so we will return it as a single message.
+When this is fixed: https://github.com/ollama/ollama/issues/9632 we can use the streaming response and send the messages as they come in with websockets.
+
+At this point, the messages are sent to the frontend, If the frontend wants, it can mess with assistant messages because they're not stored in the backend.
+We just choose to ignore because the app is not production ready.
+"""
+
 from datetime import date
 
+from dotenv import dotenv_values
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import FastAPI, WebSocket, Query, status
+from fastapi import FastAPI, Query, Body, status
 from fastapi.responses import JSONResponse
+from pandasql import sqldf
 import numpy as np
 import pandas as pd
-import httpx
-import json
+import ollama
 
-from .schemas import Location, Report, DateRange, ReportInvalidRange
+from .schemas import Location, Report, DateRange, ReportInvalidRange, MessageList
 from .data import load_data
 from . import helpers
 
-OLLAMA_URL = "http://localhost:11434/api/generate"
-MODEL_NAME = "llama3.2"
 
-app = FastAPI()
+CONFIG = dotenv_values(".env")
+
+app = FastAPI(root_path="/api")
 app.add_middleware(
     CORSMiddleware,
     allow_origins="*",
@@ -26,10 +35,99 @@ app.add_middleware(
 
 data = load_data()
 knowledge_prompt = data["prompt"]
-location_dict, air_quality, sea_water_quality = (
+location_dict, air_quality, sea_water_quality, system_prompt = (
     data["location_dict"],
     data["air_quality"],
     data["sea_water_quality"],
+    data["prompt"],
+)
+
+ollama_client = ollama.Client(host=CONFIG.get("OLLAMA_HOST"))
+
+
+def query_air_quality_data(sql_query: str) -> str:
+    """
+    Execute a SQL query on the air quality data using pandasql.
+
+    Most likely, the user will ask for a fuzzy location name, try to make queries for all locations (or using regexes/ilikes) and then decide best on your logic.
+    E.g when user wants results for "Ampelokipi - Menemeni Municipality", the user might ask for "Ampelokipi" or "Menemeni".
+
+    The air quality data is stored in the variable `air_quality`.
+    The columns of the table include:
+    - date, co, no, no2, so2, o3, year, location, air_quality_index
+
+    Example usage:
+    query_air_quality_data("SELECT * FROM air_quality WHERE location = 'Ampelokipi - Menemeni Municipality'")
+
+    Args:
+        sql_query (str): The SQL query to run on the air quality data.
+    Returns:
+        str: The result of the query as a string (table format).
+    """
+    print("Executing SQL query:", sql_query)
+    try:
+        local_vars = {"air_quality": air_quality.copy()}
+        result_df = sqldf(sql_query, local_vars)
+        print("Result of SQL Query", result_df)
+        return (
+            result_df.to_string(index=False)
+            if not result_df.empty
+            else "No data found."
+        )
+    except Exception as e:
+        print("Error executing SQL query:", e)
+        return f"Error executing SQL query: {e}"
+
+
+def sea_water_quality_data(sql_query: str) -> str:
+    """
+    Execute a SQL query on the sea water quality data using pandasql.
+
+    Most likely, the user will ask for a fuzzy location name, try to make queries for all locations (or using regexes/ilikes) and then decide best on your logic.
+    E.g when user wants results for "Thermaikos Port", the user might ask for "Thermaikos" or "Port".
+
+    The sea water quality data is stored in the variable `sea_water_quality`.
+    The columns of the table include:
+    - year, arsenic, cadmium, copper, dissolved_oxygen, dissolved_oxygen_percentage, lead, nickel, temperature, location, water_quality_index, date
+
+    Example usage:
+    sea_water_quality_data("SELECT * FROM sea_water_quality WHERE year = 2020")
+
+    Args:
+        sql_query (str): The SQL query to run on the sea water quality data.
+    Returns:
+        str: The result of the query as a string (table format).
+    """
+
+    print("Executing SQL query:", sql_query)
+    try:
+        local_vars = {"sea_water_quality": sea_water_quality.copy()}
+        result_df = sqldf(sql_query, local_vars)
+        print("Result of SQL Query", result_df)
+        return (
+            result_df.to_string(index=False)
+            if not result_df.empty
+            else "No data found."
+        )
+    except Exception as e:
+        print("Error executing SQL query:", e)
+        return f"Error executing SQL query: {e}"
+
+
+available_tools = {
+    "query_air_quality_data": query_air_quality_data,
+    "sea_water_quality_data": sea_water_quality_data,
+}
+
+MODEL_NAME = "qwen3:8b"
+CHAT_OPTIONS = {"temperature": 0}
+CHAT_TOOLS = available_tools.values()
+system_prompt = (
+    query_air_quality_data.__doc__
+    + "\n\n"
+    + sea_water_quality_data.__doc__
+    + "\n\n"
+    + system_prompt
 )
 
 
@@ -218,33 +316,53 @@ def report(
     }
 
 
-@app.websocket("/ws/generate")
-async def websocket_generate(websocket: WebSocket):
-    await websocket.accept()
-    try:
-        data = await websocket.receive_text()
-        prompt = knowledge_prompt + json.loads(data).get("prompt", "")
+@app.post("/chat")
+def chat(messages: MessageList = Body()) -> MessageList:
+    full_messages = [{"role": "system", "content": system_prompt}] + messages
 
-        payload = {
-            "model": MODEL_NAME,
-            "prompt": prompt,
-            "stream": True,
-            "temperature": 0,
-            "options": {"num_ctx": 8000},
-        }
+    # While the model tries to call tools, we will keep calling them until it returns a final message.
+    while True:
+        # If the Ollama server is not available, return an error message.
+        try:
+            response = ollama_client.chat(
+                MODEL_NAME,
+                messages=full_messages,
+                tools=CHAT_TOOLS,
+                options=CHAT_OPTIONS,
+            )
+        except ConnectionError:
+            return messages + [
+                {
+                    "role": "assistant",
+                    "content": "The assistant is currently unavailable. Please try again later.",
+                }
+            ]
 
-        async with httpx.AsyncClient(timeout=None) as client:
-            async with client.stream("POST", OLLAMA_URL, json=payload) as response:
-                async for line in response.aiter_lines():
-                    if not line.strip():
-                        continue
-                    msg = json.loads(line)
-                    token = msg.get("response")
-                    if token:
-                        await websocket.send_text(token)
-                    if msg.get("done"):
-                        break
-    except Exception as e:
-        await websocket.send_text(f"[ERROR] {e}")
-    finally:
-        await websocket.close()
+        tool_calls = getattr(response.message, "tool_calls", None)
+
+        if not tool_calls:
+            return messages + [
+                {
+                    "role": "assistant",
+                    "content": response.message.content,
+                }
+            ]
+
+        for tool in tool_calls:
+            function_to_call = available_tools.get(tool.function.name)
+            if function_to_call:
+                tool_output = function_to_call(**tool.function.arguments)
+                full_messages.append(
+                    {
+                        "role": "assistant",
+                        "tool_calls": [tool],
+                    }
+                )
+                full_messages.append(
+                    {
+                        "role": "tool",
+                        "arguments": tool.function.arguments,
+                        "name": tool.function.name,
+                        "content": str(tool_output),
+                    }
+                )

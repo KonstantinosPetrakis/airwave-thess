@@ -1,5 +1,10 @@
 venv/
-data/
 __pycache__/
 *.sqlite3
 *.db
+data/*
+!data/air_quality.tsv
+!data/location.tsv
+!data/sea_water_quality.tsv
+!data/prompt.txt
+.env

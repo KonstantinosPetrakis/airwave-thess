@@ -16,6 +16,11 @@ export enum LocationName {
   THERMAIKOS_PORT = "Thermaikos Port",
 }
 
+export enum MessageRole {
+  USER = "user",
+  ASSISTANT = "assistant",
+}
+
 export interface DateRange {
   from_date: string;
   to_date: string;
@@ -90,3 +95,10 @@ export interface Report {
   air_quality_history: AirQualityHistory;
   water_quality_history: WaterQualityHistory;
 }
+
+export interface Message {
+  role: MessageRole;
+  content: string;
+}
+
+export type MessageList = Message[];

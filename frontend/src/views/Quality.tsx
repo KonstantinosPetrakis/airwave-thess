@@ -1,6 +1,5 @@
 import { JSX, useEffect, useRef } from "react";
 import katex from "katex";
-import "katex/dist/katex.min.css";
 
 import Typography from "@mui/material/Typography";
 import Table from "@mui/material/Table";

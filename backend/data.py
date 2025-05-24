@@ -9,8 +9,7 @@ For example:
 cd .. && python -m backend.data && cd backend
 ```
 
-TODO: Update the original data because their outdated.
-TODO: Upload the preprocessed data to Github Releases and decompress it.
+To download the original data, visit the [Github Releases](https://github.com/KonstantinosPetrakis/airwave-thess/releases/tag/original-data).
 """
 
 import json
@@ -300,21 +299,11 @@ def preprocess_data():
     _preprocess_sea_water_quality_data()
 
 
-def _download_and_decompress_data():
-    """
-    This function downloads the preprocessed data from Github Releases and decompresses it.
-    If data already exists, it does nothing.
-    """
-    pass
-
-
 def load_data() -> dict[str, pd.DataFrame | dict]:
     """
     This function downloads the preprocessed TSV data from Github Releases and decompresses it.
     Then it loads the data into dataframes and sometimes into dictionaries to make API faster to return them instantly.
     """
-
-    _download_and_decompress_data()
 
     location = pd.read_csv(f"{DATA_DIR}/location.tsv", sep="\t")
     location["multi_polygons"] = location["multi_polygons"].map(json.loads)

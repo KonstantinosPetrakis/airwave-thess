@@ -1,4 +1,44 @@
 services:
+  fastapi:
+    image: python:3.13-alpine
+    container_name: fastapi
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - python_venv:/app/venv
+    networks:
+      - backend_network
+    working_dir: /app
+    command: >
+      sh -c "python -m venv venv && source ./venv/bin/activate && pip install -r requirements.txt && fastapi run main.py"
+
+  frontend:
+    image: node:20-alpine
+    container_name: frontend
+    volumes:
+      - ./frontend:/app
+      - frontend_packages:/app/node_modules
+      - frontend_build:/app/dist
+    working_dir: /app
+    command: >
+      sh -c "npm install && npm run build"
+
+  web_server:
+    image: nginx:latest
+    container_name: web_server
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - frontend_build:/frontend_build:ro
+    networks:
+      - backend_network
+    depends_on:
+      - frontend
+      - fastapi
+
+  # Ollama is an optional service
   ollama:
     image: ollama/ollama:latest
     container_name: ollama
@@ -6,8 +46,23 @@ services:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
+    networks:
+      - backend_network
     entrypoint: >
-      sh -c "ollama serve & sleep 5 && ollama run llama3.2 && wait"
+      sh -c "ollama serve & sleep 5 && ollama run qwen3:8b && wait"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
 
 volumes:
   ollama_data:
+  python_venv:
+  frontend_packages:
+  frontend_build:
+
+networks:
+  backend_network:
