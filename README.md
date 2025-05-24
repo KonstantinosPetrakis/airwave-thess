@@ -1,9 +1,6 @@
 # AirWave Thess
 
-<p>
-  <img src="frontend/public/logo.png" alt="AirWave Thess Logo" style="max-width:150px;">
-</p>
-
+<img src="frontend/public/logo.png" alt="AirWave Thess Logo" style="width:150px;">
 <img src="docs/dashboard.png" alt="AirWave Thess Logo" style="width:100%;">
 
 **AirWaveThess** is a climate-focused application created for the [OpenUP Hackathon Thessaloniki Climate 2025](https://openup.okfn.gr/) by [Konstantinos Petrakis](https://www.linkedin.com/in/konpetrakis/) and [Kyriaki Pantsiopoulou](https://www.linkedin.com/in/kiriaki-pantsiopoulou-a701b0215/). The project processes and visualizes available air quality and sea water quality data, aiming to provide insights into environmental conditions of Thessaloniki. It was developed using TypeScript, React, Python, and FastAPI.
