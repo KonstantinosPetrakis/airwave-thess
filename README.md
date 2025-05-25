@@ -9,6 +9,13 @@
 
 Normally the installation includes a LLM via Ollama, but if you don't have a decent nvidia GPU with at least 8GB VRAM (would suggest 3060 or better) you can skip the LLM part and just use the frontend and backend services.
 
+Whatever installation method you choose, first clone the repository and navigate to the project root directory:
+
+```bash
+git clone https://github.com/KonstantinosPetrakis/airwave-thess.git
+cd airwave-thess
+```
+
 ### Installation with LLM
 
 ```bash
@@ -16,6 +23,7 @@ cp ./frontend/.env.production.example ./frontend/.env.production
 cp ./frontend/.env.development.example ./frontend/.env.development
 cp ./backend/.env.production.example ./backend/.env
 docker compose up
+# Visit localhost
 ```
 
 ### Installation without LLM
@@ -25,6 +33,7 @@ cp ./frontend/.env.production.example ./frontend/.env.production
 cp ./frontend/.env.development.example ./frontend/.env.development
 cp ./backend/.env.production.example ./backend/.env
 docker compose up frontend fastapi web_server
+# Visit localhost
 ```
 
 ## Installation for Development (without Docker)
